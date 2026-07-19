@@ -161,3 +161,21 @@ cython_debug/
 
 .ruff_cache/
 *.zip
+
+data/
+*prof
+checkpoints/
+
+# OS / editor / agent tooling
+.DS_Store
+.claude/
+
+# LaTeX build artifacts (keep writeup.tex and writeup.pdf; ignore the rest)
+*.aux
+*.fdb_latexmk
+*.fls
+*.out
+*.toc
+*.synctex.gz
+*.lof
+*.lot
