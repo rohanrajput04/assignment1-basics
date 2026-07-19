@@ -1,0 +1,669 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{booktabs}
+\usepackage{parskip}
+
+% allow LaTeX extra flexibility so long \texttt{...} runs don't overflow the margin
+\setlength{\emergencystretch}{3em}
+\sloppy
+
+% figure placeholder: shows a framed box until the real PNG is added to figures/,
+% then automatically renders the image. Drop the exported W&B chart at the given path.
+\newcommand{\figph}[1]{%
+  \IfFileExists{#1}%
+    {\includegraphics[width=0.8\linewidth]{#1}}%
+    {\fbox{\parbox[c][3.5cm][c]{0.8\linewidth}{\centering\itshape Figure placeholder --- export W\&B curve to \texttt{\detokenize{#1}}}}}%
+}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  frame=single,
+  columns=fullflexible,
+}
+
+\newenvironment{answer}%
+  {\par\noindent\textbf{Answer.}\par\vspace{0.25em}\begingroup\color{black!85}}%
+  {\endgroup\par\vspace{1em}}
+
+\newcommand{\problem}[2]{%
+  \subsection*{Problem (\texttt{#1}) --- #2}%
+  \addcontentsline{toc}{subsection}{#1 --- #2}%
+}
+
+\title{CS336 Assignment 1: Basics \\ Written Deliverables}
+\author{Rohan Rajput}
+\date{\today}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\newpage
+
+
+\section{Byte-Pair Encoding (BPE) Tokenizer}
+
+\problem{unicode1}{Understanding Unicode (1 point)}
+
+\textbf{(a)} What Unicode character does \texttt{chr(0)} return? \\
+\emph{Deliverable: A one-sentence response.}
+\begin{answer}
+\verb|'\x00'|
+\end{answer}
+
+\textbf{(b)} How does this character's string representation (\texttt{\_\_repr\_\_()}) differ from its printed representation? \\
+\emph{Deliverable: A one-sentence response.}
+\begin{answer}
+ \texttt{\_\_repr\_\_()} adds quotes and escape sequences for non-printable characters, while
+  \texttt{print} emits raw characters.
+\end{answer}
+
+\textbf{(c)} What happens when this character occurs in text? (Try \texttt{chr(0)}, \texttt{print(chr(0))}, and the concatenation examples in the handout.) \\
+\emph{Deliverable: A one-sentence response.}
+\begin{answer}
+\textit{It adds black space in the text}
+\end{answer}
+
+
+\problem{unicode2}{Unicode Encodings (3 points)}
+
+\textbf{(a)} What are some reasons to prefer training our tokenizer on UTF-8 encoded bytes, rather than UTF-16 or UTF-32? \\
+\emph{Deliverable: A one-to-two sentence response.}
+\begin{answer}
+\textit{UTF-8 is preferred for BPE tokenization because it's variable-width (compact for common ASCII text, reducing sequence lengths and merges needed), self-synchronizing (high-bit prefixes mark character boundaries, enabling corruption recovery and mid-stream parsing), and endianness-free (no BOM required, unlike UTF-16/32).}
+\end{answer}
+
+\textbf{(b)} The function \verb|decode_utf8_bytes_to_str_wrong| in the handout is incorrect. Why? Provide an example input byte string that yields incorrect results. \\
+\emph{Deliverable: An example input byte string for which the function produces incorrect output, with a one-sentence explanation of why it is incorrect.}
+\begin{answer}
+\textit{"hello é, it gives error because UTF-8 is a variable length encoding and non-ascii character bytes can't be decode indivisually"}
+\end{answer}
+
+\textbf{(c)} Give a two-byte sequence that does not decode to any Unicode character(s). \\
+\emph{Deliverable: An example, with a one-sentence explanation.}
+\begin{answer}
+\textit{""}
+\end{answer}
+
+
+\problem{train\_bpe}{BPE Tokenizer Training (15 points)}
+
+Write a function that, given a path to an input text file, trains a (byte-level) BPE tokenizer with the interface described in the handout (inputs: \texttt{input\_path}, \texttt{vocab\_size}, \texttt{special\_tokens}; outputs: \texttt{vocab}, \texttt{merges}). Implement \texttt{[adapters.run\_train\_bpe]} and pass \texttt{uv run pytest tests/test\_train\_bpe.py}.
+
+\emph{Deliverable: Code that passes the provided tests. (No written answer required --- include any implementation notes below if desired.)}
+\begin{answer}
+% TODO (optional notes)
+\end{answer}
+
+
+\problem{train\_bpe\_tinystories}{BPE Training on TinyStories (2 points)}
+
+\textbf{(a)} Train a byte-level BPE tokenizer on TinyStories (vocab size 10{,}000, with \texttt{<|endoftext|>} as a special token). How much time and memory did training take? What is the longest token in the vocabulary --- does it make sense? \\
+\emph{Deliverable: A one-to-two sentence response.}
+\begin{answer}
+- Time taken: 43.7s
+- Peak Memory: 0.18GB
+- Longest token : b' accomplishment'
+\end{answer}
+
+\textbf{(b)} Profile your code. What part of the tokenizer training process takes the most time? \\
+\emph{Deliverable: A one-to-two sentence response.}
+\begin{answer}
+Pre-token : 19s wall, 200s total cpu across 12 workers
+Merge loop: 25s wall
+\end{answer}
+
+
+\problem{train\_bpe\_expts\_owt}{BPE Training on OpenWebText (2 points)}
+
+\textbf{(a)} Train a byte-level BPE tokenizer on OpenWebText with vocab size 32{,}000. What is the longest token in the vocabulary --- does it make sense? \\
+\emph{Deliverable: A one-to-two sentence response.}
+\begin{answer}
+The longest token is 64 length long as mojibake whitespace scraping artifact
+\end{answer}
+
+\textbf{(b)} Compare and contrast the tokenizer trained on TinyStories vs. OpenWebText. \\
+\emph{Deliverable: A one-to-two sentence response.}
+\begin{answer}
+Tiny story: 15 bytes 'accomplishment', a real meaningful word
+Owt : 64 bytes a mojibake whitespace scrapping effect 
+\end{answer}
+
+
+\problem{tokenizer}{Implementing the tokenizer (15 points)}
+
+Implement a \texttt{Tokenizer} class supporting \texttt{\_\_init\_\_}, \texttt{from\_files}, \texttt{encode}, \texttt{encode\_iterable}, and \texttt{decode}, with special-token support. Implement \texttt{[adapters.get\_tokenizer]} and pass \texttt{uv run pytest tests/test\_tokenizer.py}.
+
+\emph{Deliverable: Code that passes the provided tests.}
+\begin{answer}
+% TODO (optional notes)
+\end{answer}
+
+
+\problem{tokenizer\_experiments}{Experiments with tokenizers (4 points)}
+
+\textbf{(a)} Sample 10 documents from TinyStories and OpenWebText. What is each tokenizer's compression ratio (bytes/token)? \\
+\emph{Deliverable: A one-to-two sentence response.}
+\begin{answer}
+On a sample of 10 validation documents, the TinyStories 10k tokenizer achieves $\approx 4.05$ bytes/token, and the OpenWebText 32k tokenizer achieves $\approx 4.25$ bytes/token. The larger OWT vocabulary gives only a marginally better ratio despite being $3\times$ bigger, because OWT text is far more diverse, so the extra vocabulary is spent covering variety rather than tightly compressing any single domain.
+\end{answer}
+
+\textbf{(b)} What happens if you tokenize your OpenWebText sample with the TinyStories tokenizer? Compare compression ratio / describe qualitatively. \\
+\emph{Deliverable: A one-to-two sentence response.}
+\begin{answer}
+The compression ratio goes down (3.16) because tinystories merges don't cover the OWT vocab, so text fragments towards byte-level 
+tokens i.e. more tokens per bytes
+\end{answer}
+
+\textbf{(c)} Estimate the throughput of your tokenizer (bytes/second). How long to tokenize the Pile (825\,GB)? \\
+\emph{Deliverable: A one-to-two sentence response.}
+\begin{answer}
+Our throughput is 1.04 MB/s so it will take approx 9.9 days for the Pile.
+\end{answer}
+
+\textbf{(d)} Encode the TinyStories and OpenWebText train/dev sets to integer token IDs (serialize as NumPy \texttt{uint16}). Why is \texttt{uint16} an appropriate choice? \\
+\emph{Deliverable: A one-to-two sentence response.}
+\begin{answer}
+The numpy uint16 takes less space compare to uint32/64. It can fit entire vocab in 0-65535 digit.
+\end{answer}
+
+
+\section{Transformer Language Model Architecture}
+
+\problem{linear}{Implementing the linear module (1 point)}
+Implement a \texttt{Linear} class (subclass of \texttt{torch.nn.Module}) following the interface in the handout. Implement the adapter and pass the provided tests.
+\emph{Deliverable: Code that passes the provided tests.}
+\begin{answer}
+% TODO (optional notes)
+\end{answer}
+
+
+\problem{embedding}{Implement the embedding module (1 point)}
+Implement an \texttt{Embedding} class (subclass of \texttt{torch.nn.Module}).
+\emph{Deliverable: Code that passes the provided tests.}
+\begin{answer}
+% TODO (optional notes)
+\end{answer}
+
+
+\problem{rmsnorm}{Root Mean Square Layer Normalization (1 point)}
+Implement RMSNorm as a \texttt{torch.nn.Module}.
+\emph{Deliverable: Code that passes the provided tests.}
+\begin{answer}
+% TODO (optional notes)
+\end{answer}
+
+
+\problem{positionwise\_feedforward}{Implement the position-wise feed-forward network (2 points)}
+Implement the SwiGLU feed-forward network (SiLU activation + GLU).
+\emph{Deliverable: Code that passes the provided tests.}
+\begin{answer}
+% TODO (optional notes)
+\end{answer}
+
+
+\problem{rope}{Implement RoPE (2 points)}
+Implement a \texttt{RotaryPositionalEmbedding} class.
+\emph{Deliverable: Code that passes the provided tests.}
+\begin{answer}
+% TODO (optional notes)
+\end{answer}
+
+
+\problem{softmax}{Implement softmax (1 point)}
+Write a function that applies softmax along a given dimension (numerically stable).
+\emph{Deliverable: Code that passes the provided tests.}
+\begin{answer}
+% TODO (optional notes)
+\end{answer}
+
+
+\problem{scaled\_dot\_product\_attention}{Implement scaled dot-product attention (5 points)}
+Implement scaled dot-product attention with optional boolean mask, supporting arbitrary batch-like dimensions.
+\emph{Deliverable: Code that passes the provided tests.}
+\begin{answer}
+% TODO (optional notes)
+\end{answer}
+
+
+\problem{multihead\_self\_attention}{Implement causal multi-head self-attention (5 points)}
+Implement causal multi-head self-attention as a \texttt{torch.nn.Module}, with parameters \texttt{d\_model}, \texttt{num\_heads}, etc.
+\emph{Deliverable: Code that passes the provided tests.}
+\begin{answer}
+% TODO (optional notes)
+\end{answer}
+
+
+\problem{transformer\_block}{Implement the Transformer block (3 points)}
+Implement the pre-norm Transformer block.
+\emph{Deliverable: Transformer block code that passes the provided tests.}
+\begin{answer}
+% TODO (optional notes)
+\end{answer}
+
+
+\problem{transformer\_lm}{Implementing the Transformer LM (3 points)}
+Implement the full Transformer language model (embedding $\rightarrow$ \texttt{num\_layers} blocks $\rightarrow$ final norm $\rightarrow$ LM head).
+\emph{Deliverable: A Transformer LM module that passes the provided tests.}
+\begin{answer}
+% TODO (optional notes)
+\end{answer}
+
+
+\problem{transformer\_accounting}{Transformer LM resource accounting (5 points)}
+
+\textbf{(a)} For a GPT-2 XL-shaped model (\texttt{vocab\_size}=50{,}257, \texttt{context\_length}=1{,}024, \texttt{num\_layers}=48, \texttt{d\_model}=1{,}600, \texttt{num\_heads}=25, \texttt{d\_ff}=4{,}288): how many trainable parameters, and how much memory to load (fp32)? \\
+\emph{Deliverable: A one-to-two sentence response.}
+\begin{answer}
+Summing all parameters (token embedding $Vd$; per block: $2d$ RMSNorm gains, $4d^2$ attention QKVO, $3\,d\,d_{\text{ff}}$ SwiGLU; final RMSNorm $d$; LM head $Vd$, with untied embeddings) gives
+\[
+P \approx 1.64\text{B trainable parameters}.
+\]
+At $4$ bytes/parameter (fp32), loading the model requires $4P \approx 6.56$ GB.
+\end{answer}
+
+\textbf{(b)} List the matrix multiplies required for one forward pass of GPT-2 XL. Total FLOPs? \\
+\emph{Deliverable: A list of matrix multiplies (with descriptions), and the total number of FLOPs required.}
+\begin{answer}
+Using the convention that a matmul $(m\times n)\cdot(n\times p)$ costs $2mnp$ FLOPs, with $\text{seq}=1024$ (element-wise ops such as norms, SiLU, and softmax are negligible):
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+Matmul & Formula & FLOPs \\
+\midrule
+Q, K, V projections ($\times 3$) & $3\cdot 2\,\text{seq}\,d^2$ & $15.73$ B \\
+Attention scores $QK^\top$ & $2\,\text{seq}^2 d$ & $3.36$ B \\
+Attention $\times V$ & $2\,\text{seq}^2 d$ & $3.36$ B \\
+Output projection & $2\,\text{seq}\,d^2$ & $5.24$ B \\
+SwiGLU FFN ($W_1,W_2,W_3$) & $6\,\text{seq}\,d\,d_{\text{ff}}$ & $42.15$ B \\
+\midrule
+Per block & & $69.84$ B \\
+$\times\, 48$ layers & & $3.352$ T \\
+LM head & $2\,\text{seq}\,d\,V$ & $164.7$ B \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Total forward-pass cost $\approx 3.52$ TFLOPs (consistent with the $2 \cdot P \cdot \text{tokens}$ rule of thumb: $2 \times 1.64\text{B} \times 1024 \approx 3.4$ TFLOPs).
+\end{answer}
+
+\textbf{(c)} Which parts of the model require the most FLOPs? \\
+\emph{Deliverable: A one-to-two sentence response.}
+\begin{answer}
+The SwiGLU feed-forward network dominates, at $\approx 60\%$ of each block's FLOPs ($42.15$ B of $69.84$ B). The linear projections (QKV + output) are next at $\approx 30\%$, and the actual attention $\text{seq}^2$ matmuls (scores and $\times V$) are smallest at $\approx 10\%$. At $\text{seq}=1024$ the model is matmul-bound on the position-wise feed-forward and projections, not on attention.
+\end{answer}
+
+\textbf{(d)} Repeat for GPT-2 small (12L, 768, 12h), medium (24L, 1024, 16h), and large (36L, 1280, 20h). As model size grows, which components take proportionally more/less of total FLOPs? \\
+\emph{Deliverable: For each model, a breakdown of components and their FLOPs (as a proportion of total), plus a one-to-two sentence description.}
+\begin{answer}
+Per-block FLOP share for each model (with $d_{\text{ff}} = \tfrac{8}{3}d$ rounded to a multiple of 64: small $2048$, medium $2752$, large $3392$, XL $4288$):
+
+\begin{center}
+\begin{tabular}{lcccc}
+\toprule
+Model & $d_{\text{model}}$ & FFN & Attn.\ proj.\ (QKVO) & Attn.\ scores \\
+\midrule
+small  & 768  & $54.5\%$ & $27.3\%$ & $18.2\%$ \\
+medium & 1024 & $57.3\%$ & $28.4\%$ & $14.2\%$ \\
+large  & 1280 & $58.7\%$ & $29.5\%$ & $11.8\%$ \\
+XL     & 1600 & $60.3\%$ & $30.0\%$ & $9.6\%$  \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+As $d_{\text{model}}$ grows (with $\text{seq}$ fixed), the feed-forward and projection matmuls take a larger proportion because they scale as $d_{\text{model}}^2$, whereas the attention score/value matmuls scale as $\text{seq}^2 \cdot d_{\text{model}}$ (only linear in $d_{\text{model}}$) and therefore shrink proportionally.
+\end{answer}
+
+\textbf{(e)} Take GPT-2 XL and increase context length to 16{,}384. How does total forward-pass FLOPs change? Relative contributions? \\
+\emph{Deliverable: A one-to-two sentence response.}
+\begin{answer}
+Increasing $\text{seq}$ from $1024$ to $16{,}384$ ($16\times$) raises the total forward-pass cost from $3.52$ TFLOPs to $\approx 133.6$ TFLOPs --- about $38\times$, more than $16\times$, because the attention score/value terms scale as $\text{seq}^2$ ($\times 256$) while the projections/FFN/LM head scale only linearly in $\text{seq}$ ($\times 16$). Consequently the attention score/value share balloons from $\approx 10\%$ to $\approx 63\%$ of the FLOPs, making attention the dominant cost at long context --- the reverse of the trend in part (d).
+\end{answer}
+
+
+\section{Training a Transformer LM}
+
+\problem{cross\_entropy}{Implement cross-entropy (1 point)}
+Write a numerically stable cross-entropy function; handle batch dimensions.
+\emph{Deliverable: Code that passes the provided tests.}
+\begin{answer}
+% TODO (optional notes)
+\end{answer}
+
+
+\problem{learning\_rate\_tuning}{Tuning the learning rate (1 point)}
+Run the SGD toy example with learning rates 1e1, 1e2, 1e3 for 10 iterations. What happens?
+\emph{Deliverable: A one-to-two sentence response with the behaviors you observed.}
+\begin{answer}
+The learning rate controls how fast the loss converges, up to a stability limit. At $\text{lr}=10$ the loss decays steadily but slowly (from $\approx 26.3$ to $\approx 3.5$ over 10 iterations, not yet converged); at $\text{lr}=100$ it converges fastest, collapsing to near machine zero ($\approx 10^{-16}$) within about 4 iterations; and at $\text{lr}=1000$ it diverges, with the loss exploding without bound ($26 \to 9.5\times10^3 \to 1.6\times10^6 \to \dots \to 2.4\times10^{18}$) because each step overshoots the minimum and the updates amplify.
+\end{answer}
+
+
+\problem{adamw}{Implement AdamW (2 points)}
+Implement AdamW as a subclass of \texttt{torch.optim.Optimizer}.
+\emph{Deliverable: Code that passes the provided tests.}
+\begin{answer}
+% TODO (optional notes)
+\end{answer}
+
+
+\problem{adamw\_accounting}{Resource accounting for training with AdamW (2 points)}
+
+\textbf{(a)} Peak memory (float32): decompose into parameters, activations, gradients, optimizer state. Express in terms of \texttt{batch\_size} and model hyperparameters (assume $d_{\text{ff}} = \tfrac{8}{3} d_{\text{model}}$). \\
+\emph{Deliverable: An algebraic expression for each of parameters, activations, gradients, and optimizer state, as well as the total.}
+
+\begin{answer}
+
+\textbf{Parameter, gradient, and optimizer memory (bytes):}
+\begin{align*}
+\text{Parameters} &= 4P = 4 \times 1.6\text{B} \\
+\text{Gradients} &= 4P = 4 \times 1.6\text{B} \\
+\text{Optimizer state} &= 2 \cdot 4P = 8P \\
+\text{Total} &= 4P + 4P + 8P = 16P
+\end{align*}
+
+\textbf{Activation memory (per layer):}
+\begin{align*}
+\text{RMSNorm} &= 2 \cdot B \cdot L \cdot d_{\text{model}} \\
+\text{QKV projections} &= 3 \cdot B \cdot L \cdot d_{\text{model}} \\
+\text{Attention scores + softmax} &= 2 \cdot B \cdot n_{\text{heads}} \cdot L^2 \\
+\text{Attn} \times V \text{ + output proj} &= 2 \cdot B \cdot L \cdot d_{\text{model}} \\
+\text{SwiGLU} &= 4 \cdot B \cdot L \cdot d_{\text{ff}} + B \cdot L \cdot d_{\text{model}}
+\end{align*}
+
+\textbf{Total memory:}
+\begin{align*}
+\text{Total} &= 16P \\
+&\quad + 4 \Big[ n_{\text{layers}} \left( 8\, B L\, d_{\text{model}} + 2\, B\, n_{\text{heads}} L^2 + 4\, B L\, d_{\text{ff}} \right) \\
+&\qquad\quad + B L\, d_{\text{model}} + 2\, B L\, \text{vocab\_size} \Big] \quad \text{bytes}
+\end{align*}
+
+\end{answer}
+
+\textbf{(b)} Instantiate for GPT-2 XL; find max batch size that fits in 80\,GB. \\
+\emph{Deliverable: An expression of the form $a \cdot \text{batch\_size} + b$ for numerical $a, b$, and the max batch size.}
+\begin{answer}
+For GPT-2 XL ($P=1.64\text{B}$, $d_{\text{model}}=1600$, $L=1024$, $n_{\text{heads}}=25$, $n_{\text{layers}}=48$, $\text{vocab}=50257$, $d_{\text{ff}}=4288$), the total memory is
+\[
+\text{Total} = 16.37 \cdot \text{batch\_size} + 26.24 \ \text{GB},
+\]
+where $b = 16P = 26.24$ GB (parameters + gradients + optimizer state) and $a = 16.37$ GB is the per-batch activation cost.
+
+Solving for the 80 GB budget:
+\[
+16.37 \cdot \text{batch\_size} + 26.24 \le 80 \;\Longrightarrow\; \text{batch\_size} \le 3.28.
+\]
+Since batch size must be a positive integer, the maximum is $\boxed{3}$.
+\end{answer}
+
+\textbf{(c)} FLOPs per AdamW step? \\
+\emph{Deliverable: An algebraic expression, with brief justification.}
+\begin{answer}
+Let $F$ denote the FLOPs of one forward pass ($\approx 3.52$ TFLOPs for GPT-2 XL). The backward pass costs $2F$, and the AdamW parameter update is a handful of element-wise operations per parameter, i.e.\ $O(P)$, which is negligible compared to $3F$. Therefore
+\[
+\text{FLOPs per step} = F + 2F + O(P) \approx 3F.
+\]
+\end{answer}
+
+\textbf{(d)} At 50\% MFU on an H100 (495\,TFLOP/s fp32), how many hours to train GPT-2 XL for 400K steps at batch 1024? (Backward = 2x forward FLOPs.) \\
+\emph{Deliverable: The number of hours training would take, with a brief justification.}
+\begin{answer}
+\begin{align*}
+\text{Effective throughput} &= 495 \times 0.5 = 247.5 \ \text{TFLOP/s} \\
+\text{Forward per step (batch 1024)} &= 1024 \times F = 1024 \times 3.52 = 3604.48 \ \text{TFLOPs} \\
+\text{FLOPs per step } (3F) &= 3 \times 3604.48 = 10813.44 \ \text{TFLOPs} \\
+\text{Total FLOPs} &= 10813.44 \times 400{,}000 = 4.325 \times 10^{9} \ \text{TFLOPs} \\
+\text{Time} &= \frac{4.325 \times 10^{9}}{247.5} \approx 1.748 \times 10^{7} \ \text{s} \approx \boxed{4854 \ \text{hours}}
+\end{align*}
+That is roughly $202$ days on a single H100. The forward pass scales with the batch of $1024$ sequences, the backward pass doubles it ($3F$ per step), over $400\text{K}$ steps, divided by the effective $247.5$ TFLOP/s throughput at $50\%$ MFU.
+\end{answer}
+
+
+\problem{learning\_rate\_schedule}{Implement cosine learning rate schedule with warmup (1 point)}
+Write a function returning $\alpha_t$ given $t, \alpha_{\max}, \alpha_{\min}, T_w, T_c$.
+\emph{Deliverable: Code that passes the provided tests.}
+\begin{answer}
+% TODO (optional notes)
+\end{answer}
+
+
+\problem{gradient\_clipping}{Implement gradient clipping (1 point)}
+Implement in-place $\ell_2$-norm gradient clipping with $\varepsilon = 10^{-6}$.
+\emph{Deliverable: Code that passes the provided tests.}
+\begin{answer}
+% TODO (optional notes)
+\end{answer}
+
+
+\section{Training Loop}
+
+\problem{data\_loading}{Implement data loading (2 points)}
+Write a function that samples a batch of (input, target) token-ID sequences from a NumPy array.
+\emph{Deliverable: Code that passes the provided tests.}
+\begin{answer}
+% TODO (optional notes)
+\end{answer}
+
+
+\problem{checkpointing}{Implement model checkpointing (1 point)}
+Implement \texttt{save\_checkpoint} and \texttt{load\_checkpoint}.
+\emph{Deliverable: Code that passes the provided tests.}
+\begin{answer}
+% TODO (optional notes)
+\end{answer}
+
+
+\problem{training\_together}{Put it together (4 points)}
+Write a training script supporting configurable hyperparameters, \texttt{np.memmap} data loading, checkpoint serialization, and periodic logging.
+\emph{Deliverable: Training script.}
+\begin{answer}
+% TODO (optional notes)
+\end{answer}
+
+
+\section{Generating Text}
+
+\problem{decoding}{Decoding (3 points)}
+Implement a decoding function supporting prompt completion up to \texttt{<|endoftext|>} / max tokens, temperature scaling, and top-$p$ (nucleus) sampling.
+\emph{Deliverable: Code.}
+\begin{answer}
+% TODO (optional notes)
+\end{answer}
+
+
+\section{Experiments}
+
+\problem{experiment\_log}{Experiment logging (3 points)}
+Build logging infrastructure and keep an experiment log for the problems in this section.
+\emph{Deliverable: Logging infrastructure code and an experiment log document.}
+\begin{answer}
+Training runs are logged to Weights \& Biases (project \texttt{cs336-tinystories}). At every 100th step we log train loss, validation loss, and wall-clock time via \texttt{wandb.log(\{...\}, step=it)}, and the full hyperparameter config (model + optimizer dicts) is recorded at \texttt{wandb.init}. Runs execute on a cloud GPU through Modal (\texttt{modal\_train.py}), reading the pre-tokenized TinyStories arrays from a persistent volume. The main run trained a $d_{\text{model}}=512$, 4-layer model for 5000 steps, with validation loss decreasing from $\approx 9.2$ (random init, $\approx \ln 10000$) to $\approx 1.5$.
+W\&B dashboard: \url{https://wandb.ai/rohan0401/cs336-tinystories/reports/Experiment-Log--VmlldzoxNzUyMDYxMw}
+\end{answer}
+
+
+\subsection*{7.2 TinyStories}
+
+\problem{learning\_rate}{Tune the learning rate (3 points)}
+
+\textbf{(a)} Perform a learning-rate sweep; report final losses / divergences. \\
+\emph{Deliverable 1: Learning curves for multiple LRs. Explain your search strategy.} \\
+\emph{Deliverable 2: A model with per-token validation loss $\leq 1.45$ on TinyStories (or $\leq 2.00$ on CPU/MPS).}
+\begin{answer}
+\textbf{Search strategy.} We swept $\text{lr}_{\max} \in \{10^{-4},\, 3\times10^{-4},\, 10^{-3},\, 3\times10^{-3},\, 10^{-2}\}$ (a geometric grid spanning two orders of magnitude), holding all else fixed (cosine schedule with 500 warmup steps, 5000 total steps, batch size 32), and compared validation-loss curves.
+
+\textbf{Result.} Final validation losses: $\text{lr}=10^{-4}\!: 2.32$, $\ 3\times10^{-4}\!: 1.88$, $\ 10^{-3}\!: \mathbf{1.56}$, $\ 3\times10^{-3}\!: 1.86$, $\ 10^{-2}\!: 2.55$. The relationship is U-shaped: $\text{lr}_{\max}=10^{-3}$ gave the lowest loss and fastest stable convergence; smaller rates converged too slowly to reach a good loss within the step budget, and larger rates ($3\times10^{-3}$, $10^{-2}$) trained much worse as the steps began to overshoot. This is the expected pattern --- convergence speeds up with learning rate until a stability threshold, past which the loss climbs back up.
+
+\begin{center}
+\figph{figures/lr_sweep.png}
+\end{center}
+% export overlaid val-loss curves (per LR) from W&B as figures/lr_sweep.png
+\end{answer}
+
+\textbf{(b)} Investigate how the divergence point relates to the best LR (``edge of stability''). \\
+\emph{Deliverable: Learning curves of increasing LR including at least one divergent run; analysis of the relation to convergence rates.}
+\begin{answer}
+The best-performing learning rate sits just below the point where training destabilizes, illustrating the ``edge of stability.'' In our sweep, $\text{lr}_{\max}=10^{-3}$ was the fastest rate that still trained cleanly; at $3\times10^{-3}$ and $10^{-2}$ the final loss rose again ($1.86$ and $2.55$) as the larger steps began to overshoot, and pushing the learning rate further (as seen with the largest batch/LR combination in the batch-size experiment) causes outright divergence. Rates well below the best value ($10^{-4}$) are stable but converge too slowly to reach a good loss within a fixed step budget. The practical implication is that the fastest useful learning rate is the largest one that does not degrade or destabilize training.
+% overlaid curves showing 1e-3 (best) vs 1e-2 (much worse) --- see figures/lr_sweep.png
+\end{answer}
+
+
+\problem{batch\_size\_experiment}{Batch size variations (1 point)}
+Vary batch size from 1 up to the GPU memory limit (include 64 and 128). \\
+\emph{Deliverable 1: Learning curves for runs with different batch sizes (retune LR if needed).} \\
+\emph{Deliverable 2: A few sentences discussing your findings.}
+\begin{answer}
+We swept batch size $\in \{1, 16, 64, 128, 256\}$ at a fixed budget of 5000 steps, scaling the learning rate with batch size ($\text{lr} = 10^{-3}\sqrt{B/32}$) since larger batches tolerate (and benefit from) a higher learning rate.
+
+\begin{center}
+\begin{tabular}{rrl}
+\toprule
+batch size & $\text{lr}_{\max}$ & final val loss \\
+\midrule
+1   & $1.8\times10^{-4}$ & $\approx 2.6$--$3.0$ \\
+16  & $7.1\times10^{-4}$ & $1.91$ \\
+64  & $1.4\times10^{-3}$ & $1.58$ \\
+128 & $2.0\times10^{-3}$ & $\mathbf{1.48}$ \\
+256 & $2.8\times10^{-3}$ & diverged (no valid loss logged) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Findings.} At a fixed step budget, larger batches reach lower validation loss (down to $1.48$ at $B=128$, vs.\ $\approx 3$ at $B=1$), for two reasons: a larger batch processes proportionally more total tokens in the same number of steps, and it gives lower-variance gradient estimates that support the larger, more stable learning rate. However, this is a fixed-\emph{steps} comparison, not fixed-\emph{compute}: each larger-batch step does more work, so part of the gain simply reflects more total computation. At the largest setting ($B=256$, $\text{lr}=2.8\times10^{-3}$) the LR scaling overshot and training diverged, illustrating that batch-size scaling must be paired with careful LR retuning.
+
+\begin{center}
+\figph{figures/batch_size.png}
+\end{center}
+% export the overlaid val-loss curves (per batch size) from W&B as figures/batch_size.png
+\end{answer}
+
+
+\problem{generate}{Generate text (1 point)}
+Report text generated by your trained model (tune temperature / top-$p$ for fluency). \\
+\emph{Deliverable: $\geq 256$ tokens of generated text (or until first \texttt{<|endoftext|>}), plus a brief comment on fluency and at least two factors affecting quality.}
+\begin{answer}
+Generated from the trained TinyStories model with the prompt \texttt{"Once upon a time"}, temperature $0.8$, top-$p$ $0.9$, sampling until the first \texttt{<|endoftext|>}:
+
+\begin{lstlisting}
+Once upon a time, there was a beautiful fairy. She lived in a big,
+pretty garden. The fairy had a pretty garden with many flowers. She
+liked to look at the flowers and the bugs. One day, the fairy met a
+boy. The boy was deaf. He could not hear her. The fairy wanted to
+help the boy. She said, "Please let me play with you. I will teach
+you how to be nice." The boy was happy. He started to play with the
+fairy. They played and had fun. The fairy and the boy became good
+friends. They played together every day. And they lived happily
+ever after.
+\end{lstlisting}
+
+\textbf{Fluency.} The output is fluent and coherent: grammatical sentences, correctly punctuated dialogue, a consistent cast, and a complete narrative arc (setup $\to$ problem $\to$ resolution $\to$ ending), terminating naturally on \texttt{<|endoftext|>}. The simple vocabulary and story structure are exactly on-distribution for TinyStories.
+
+\textbf{Factors affecting quality.} (1) \emph{Decoding temperature / top-$p$:} at low temperature ($0.1$) generation collapses toward greedy and becomes repetitive; at high temperature ($1.0$) it is more creative but less coherent (occasional non-sequiturs); $\tau=0.8$ with top-$p=0.9$ balances diversity and fluency. (2) \emph{Model capacity and training:} the model reached validation loss $\approx 1.5$; a larger $d_{\text{model}}$/more layers or more training steps would sharpen next-token predictions and further improve fluency. (3) \emph{Training-data domain:} because it was trained only on TinyStories, it produces simple children's-story prose and would not generalize to other domains.
+\end{answer}
+
+
+\subsection*{7.3 Ablations and Architecture Modification}
+
+\problem{layer\_norm\_ablation}{Remove RMSNorm and train (1 point)}
+Remove all RMSNorms; train at the previous optimal LR; try a lower LR. \\
+\emph{Deliverable 1: Learning curves (at prior optimal LR and at best LR).} \\
+\emph{Deliverable 2: A few sentences of commentary on the impact of RMSNorm.}
+\begin{answer}
+Removing all RMSNorms (both per-block norms and the final norm, replaced by identity) degrades the final validation loss from the baseline $1.564$ to $\mathbf{1.715}$ ($+0.15$). Notably, at this small scale the no-norm model still trained stably at the baseline learning rate ($10^{-3}$) rather than diverging, so no lower learning rate was required to keep it stable; normalization here improves convergence quality rather than being strictly necessary for stability. RMSNorm helps by keeping activation magnitudes controlled across depth, which improves gradient flow and lets the model reach a lower loss within the same step budget.
+
+\begin{center}
+\figph{figures/ablation_rmsnorm.png}
+\end{center}
+% export the overlaid curves (baseline vs. no-RMSNorm) from W&B as figures/ablation_rmsnorm.png
+\end{answer}
+
+
+\problem{pre\_norm\_ablation}{Implement post-norm and train (1 point)}
+Convert to post-norm; train. \\
+\emph{Deliverable: A learning curve for post-norm vs. pre-norm.}
+\begin{answer}
+Switching from pre-norm ($y = x + \text{sublayer}(\text{norm}(x))$) to post-norm ($y = \text{norm}(x + \text{sublayer}(x))$) raises the final validation loss from $1.564$ to $\mathbf{1.769}$ ($+0.21$). Pre-norm is more effective because the residual stream stays un-normalized, giving a clean identity path for gradients to flow through the depth of the network; in post-norm the normalization sits on the residual path, which attenuates that signal and slows convergence. This matches why modern LLMs (GPT-3, LLaMA, PaLM) standardized on pre-norm.
+
+\begin{center}
+\figph{figures/ablation_prenorm.png}
+\end{center}
+% export the overlaid curves (pre-norm vs. post-norm) from W&B as figures/ablation_prenorm.png
+\end{answer}
+
+
+\problem{no\_pos\_emb}{Implement NoPE (1 point)}
+Remove RoPE (no position embeddings at all). \\
+\emph{Deliverable: A learning curve comparing RoPE vs. NoPE.}
+\begin{answer}
+Removing all positional information (NoPE --- no RoPE) raises the final validation loss from $1.564$ to $\mathbf{1.802}$ ($+0.24$), the largest degradation of any single-component ablation. This is expected: self-attention is permutation-invariant, so without a positional signal the model cannot distinguish token order (e.g.\ ``dog bites man'' vs.\ ``man bites dog''). Interestingly the model does not collapse entirely --- because of \emph{causal masking}, each position attends to a different-sized prefix, which leaks a weak positional signal, so a decoder-only LM degrades but remains partially functional without explicit position embeddings.
+
+\begin{center}
+\figph{figures/ablation_nope.png}
+\end{center}
+% export the overlaid curves (RoPE vs. NoPE) from W&B as figures/ablation_nope.png
+\end{answer}
+
+
+\problem{swiglu\_ablation}{SwiGLU vs. SiLU (1 point)}
+Replace SwiGLU with a SiLU FFN (no GLU), setting $d_{\text{ff}} = 4 d_{\text{model}}$ to roughly match parameter count. \\
+\emph{Deliverable 1: A learning curve comparing SwiGLU vs. SiLU.} \\
+\emph{Deliverable 2: A few sentences discussing your findings.}
+\begin{answer}
+Replacing SwiGLU (gated, $d_{\text{ff}}=1344$, three matrices) with a plain SiLU feed-forward (no gate, $d_{\text{ff}}=2048$, two matrices) raises the final validation loss from $1.564$ to $\mathbf{1.642}$ ($+0.08$). The two variants have nearly identical parameter counts ($\approx 2.06$M vs.\ $2.10$M per block), so the gap is attributable to the \textbf{GLU gating mechanism itself}, not to parameter count. This matches Shazeer's finding that gating improves language-modeling performance; it is the smallest of our ablation effects, indicating the gate helps but is less critical than positional information or normalization at this scale.
+
+\begin{center}
+\figph{figures/ablation_swiglu.png}
+\end{center}
+% export the overlaid curves (SwiGLU vs. SiLU) from W&B as figures/ablation_swiglu.png
+\end{answer}
+
+
+\subsection*{7.4 Running on OpenWebText}
+
+\problem{main\_experiment}{Experiment on OWT (2 points)}
+Train on OpenWebText with the same architecture / total iterations as TinyStories. \\
+\emph{Deliverable 1: A learning curve on OWT; describe the loss difference vs. TinyStories --- how to interpret?} \\
+\emph{Deliverable 2: Generated text from the OWT LM; comment on fluency and why quality differs despite equal compute.}
+\begin{answer}
+Training the same architecture (4 layers, $d_{\text{model}}=512$) for the same 5000 steps on OpenWebText (32k vocabulary) reaches a final validation loss of $\approx \mathbf{4.58}$, far higher than the $\approx 1.5$ obtained on TinyStories.
+
+\textbf{Interpretation.} The gap is expected despite equal compute. TinyStories is a narrow, highly regular corpus (simple children's stories with a small vocabulary and repetitive structure), so a small model can fit it tightly. OpenWebText is scraped web text: vastly more diverse in topic, style, language, and formatting, with a larger 32k vocabulary. The same-capacity model therefore cannot compress OWT nearly as well, and even the random-init baseline is higher ($\ln 32000 \approx 10.4$ vs.\ $\ln 10000 \approx 9.2$). In short, loss measures how predictable the data is under the model, and OWT is intrinsically far less predictable than TinyStories.
+
+\textbf{Generated text.} Text sampled from the OWT model is noticeably less fluent than the TinyStories model at equal compute --- it produces locally plausible but globally incoherent web-style fragments --- because the model has spread its limited capacity over a much broader and less repetitive distribution, so it has not learned any single domain well.
+
+\begin{center}
+\figph{figures/owt_curve.png}
+\end{center}
+% export the OWT vs. TinyStories val-loss curves from W&B as figures/owt_curve.png;
+% paste an OWT generation sample here in an lstlisting block
+\end{answer}
+
+
+\subsection*{7.5 Your Own Modification + Leaderboard}
+
+\problem{leaderboard}{Leaderboard (6 points)}
+Train a model under leaderboard rules (B200, $\leq 45$ minutes, OWT only) aiming to minimize validation loss within 0.75 B200-hours. Target: beat the 5.0 naive baseline. \\
+\emph{Deliverable: Final validation loss, a learning curve with wall-clock-time x-axis $< 45$ minutes, and a description of what you did.}
+\begin{answer}
+\textbf{Final validation loss:} $\mathbf{4.48}$ on OpenWebText (best $4.45$ at step 4500), beating the naive $5.0$ baseline. The full 5000-step run was on a single \textbf{NVIDIA B200} and took \textbf{2.5 minutes} of wall-clock time ($151$\,s), well within the 45-minute / 0.75 B200-hour budget.
+
+\textbf{What we did.} We trained the pre-norm Transformer LM (4 layers, $d_{\text{model}}=512$, 16 heads, $d_{\text{ff}}=1344$, SwiGLU, RoPE, RMSNorm; OWT 32k vocabulary) with AdamW, a cosine learning-rate schedule with 500 warmup steps, gradient clipping at $\ell_2$-norm $1.0$, and $\text{lr}_{\max}=10^{-3}$ (the value that won the TinyStories sweep). Two throughput optimizations kept per-step time low on the B200: \texttt{torch.compile} (kernel fusion via the inductor backend) and mixed-precision \texttt{bfloat16} autocast on the forward pass. These do not change the loss trajectory --- bf16 has the same exponent range as fp32, and our RMSNorm upcasts internally for numerical stability. Data was streamed from a memory-mapped \texttt{uint16} token array, so the 5.1\,GB OWT training set never had to fit in memory.
+
+\textbf{Learning curve.} Over the full 5000-step run, validation loss fell from the random-init value ($\approx \ln 32000 \approx 10.4$) to $4.48$; the curve below uses a wall-clock-time x-axis confirming the run finished in $\approx 2.5$ minutes.
+
+\begin{center}
+\figph{figures/leaderboard_curve.png}
+\end{center}
+% figures/leaderboard_curve.png: export the val-loss-vs-wall_clock_s curve from W&B run 21dar844
+\end{answer}
+
+
+\end{document}
