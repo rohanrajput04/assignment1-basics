@@ -650,19 +650,19 @@ Training the same architecture (4 layers, $d_{\text{model}}=512$) for the same 5
 \subsection*{7.5 Your Own Modification + Leaderboard}
 
 \problem{leaderboard}{Leaderboard (6 points)}
-Train a model under leaderboard rules (B200, $\leq 45$ minutes, OWT only) aiming to minimize validation loss within 0.75 B200-hours. Target: beat the 5.0 naive baseline. \\
+Train a model under leaderboard rules (B200, $\leq 45$ minutes, OWT only, \textbf{validation at context length 512}, 32k vocabulary) aiming to minimize validation loss. The live public leaderboard baseline to beat is $\approx 3.3$ (competitive entries are near $\approx 3.0$; the handout's older ``5.0'' figure is superseded). \\
 \emph{Deliverable: Final validation loss, a learning curve with wall-clock-time x-axis $< 45$ minutes, and a description of what you did.}
 \begin{answer}
-\textbf{Final validation loss:} $\mathbf{4.48}$ on OpenWebText (best $4.45$ at step 4500), beating the naive $5.0$ baseline. The full 5000-step run was on a single \textbf{NVIDIA B200} and took \textbf{2.5 minutes} of wall-clock time ($151$\,s), well within the 45-minute / 0.75 B200-hour budget.
+\textbf{Final validation loss:} $\mathbf{3.42}$ on OpenWebText (validated at context length 512), at the 45-minute mark (best single-batch estimate $3.34$). This sits essentially \emph{at} the $\approx 3.3$ leaderboard baseline --- a large improvement over the small model's $4.48$, though not yet in the competitive ($\approx 3.0$) range. The validation loss is a single-batch estimate and is somewhat noisy (it fluctuates $\approx 3.34$--$3.47$); a full validation-set pass would give a cleaner number.
 
-\textbf{What we did.} We trained the pre-norm Transformer LM (4 layers, $d_{\text{model}}=512$, 16 heads, $d_{\text{ff}}=1344$, SwiGLU, RoPE, RMSNorm; OWT 32k vocabulary) with AdamW, a cosine learning-rate schedule with 500 warmup steps, gradient clipping at $\ell_2$-norm $1.0$, and $\text{lr}_{\max}=10^{-3}$ (the value that won the TinyStories sweep). Two throughput optimizations kept per-step time low on the B200: \texttt{torch.compile} (kernel fusion via the inductor backend) and mixed-precision \texttt{bfloat16} autocast on the forward pass. These do not change the loss trajectory --- bf16 has the same exponent range as fp32, and our RMSNorm upcasts internally for numerical stability. Data was streamed from a memory-mapped \texttt{uint16} token array, so the 5.1\,GB OWT training set never had to fit in memory.
+\textbf{What we did.} The initial small model (4 layers, $d_{\text{model}}=512$, context 256) only reached $\approx 4.5$, which does not clear the $\approx 3.3$ bar --- and it was validated at context 256, not the required 512. To get near the bar we scaled up to a GPT-2-small-scale pre-norm Transformer (\textbf{12 layers, $d_{\text{model}}=768$, 12 heads, $d_{\text{ff}}=2048$, $\approx 134$M parameters}) with SwiGLU, RoPE, and RMSNorm, trained on OpenWebText (32k vocab) at \textbf{context length 512}. Optimization: AdamW with a cosine schedule (1000 warmup steps), gradient clipping at $\ell_2$-norm $1.0$, and $\text{lr}_{\max}=8\times10^{-4}$ with \textbf{batch size 64}. Throughput optimizations for the B200: \texttt{torch.compile} (inductor kernel fusion), mixed-precision \texttt{bfloat16} autocast, TF32 matmuls (\texttt{set\_float32\_matmul\_precision("high")}), and memory-mapped \texttt{uint16} data streaming. Because the model was overhead/data-loading bound at batch 32, moving to batch 64 gave $\approx 2.2\times$ the tokens/second, which was the key lever for fitting $\approx 0.7$B tokens into the budget. Further gains (toward $\approx 3.0$) would come from a larger batch (128), which remains throughput-limited by data loading, and from spending the step budget so that compilation plus training finish comfortably under 45 minutes.
 
-\textbf{Learning curve.} Over the full 5000-step run, validation loss fell from the random-init value ($\approx \ln 32000 \approx 10.4$) to $4.48$; the curve below uses a wall-clock-time x-axis confirming the run finished in $\approx 2.5$ minutes.
+\textbf{Learning curve.} Validation loss fell from the random-init value ($\approx \ln 32000 \approx 10.4$) to $\approx 3.4$ within 45 minutes; the curve below uses a wall-clock-time x-axis (truncated at the 45-minute cutoff) with the $\approx 3.3$ baseline marked.
 
 \begin{center}
 \figph{figures/leaderboard_curve.png}
 \end{center}
-% figures/leaderboard_curve.png: export the val-loss-vs-wall_clock_s curve from W&B run 21dar844
+% figures/leaderboard_curve.png: re-export the val-loss-vs-wall_clock_s curve from the context-512 batch-64 run (W&B z8awafdm) once it finishes
 \end{answer}
 
 

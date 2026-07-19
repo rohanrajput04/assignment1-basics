@@ -4,6 +4,7 @@ from einops import rearrange
 import torch
 import time
 import wandb
+torch.set_float32_matmul_precision("high")
 model_size = {
     "d_model" : 512,
     "num_layers" : 4,
